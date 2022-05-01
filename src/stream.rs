@@ -3,6 +3,8 @@ use redis::Cmd;
 
 #[derive(Debug, Clone)]
 pub struct TaskStream {
+    prefix: String,
+    group: String,
     consumer_group: String,
     stream: String,
     broadcast_channel: String,
@@ -18,7 +20,21 @@ impl TaskStream {
             broadcast_channel: format!("{prefix}_scallion_task_stream_broadcast"),
             consumer,
             max_stream_size: 100_000,
+            prefix,
+            group,
         }
+    }
+
+    pub fn prefix(&self) -> &str {
+        self.prefix.as_str()
+    }
+
+    pub fn group(&self) -> &str {
+        self.group.as_str()
+    }
+
+    pub fn consumer(&self) -> &str {
+        self.group.as_str()
     }
 
     pub fn task_result_key(&self, task_name: &str, id: &str) -> String {

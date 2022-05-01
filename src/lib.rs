@@ -13,10 +13,10 @@ mod task_result;
 pub mod tasks;
 
 pub use self::{
-    consumer::{ConsumerCommands, StreamConsumer, StreamConsumerBuilder},
+    consumer::{ConsumerCommands, ConsumerHandle, StreamConsumer, StreamConsumerBuilder},
     consumer_task::{ConsumerTask, TaskOptions},
     container::TaskContainer,
-    error::ConsumerError,
+    error::{ConsumerError, TaskError},
     manager::TaskManager,
     message::{JsonMessageProvider, MessageProvider},
     registry::RegisteredTask,

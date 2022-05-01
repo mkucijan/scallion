@@ -7,13 +7,14 @@ use redis::{Client, Cmd, ErrorKind, RedisError};
 use tracing::debug;
 
 use crate::registry::TaskRegistry;
-use crate::{ConsumerError, Task};
+use crate::{Task, TaskError};
 
 use super::consumer::StreamConsumerBuilder;
 use super::stream::TaskStream;
 use super::TaskResult;
 
 pub struct TaskManager {
+    client: redis::Client,
     consumer_group: TaskStream,
     manager: ConnectionManager,
     pubsub: PubSub,
@@ -33,7 +34,7 @@ impl TaskManager {
         client: Client,
         prefix: impl ToString,
         group: impl ToString,
-    ) -> Result<Self, ConsumerError> {
+    ) -> Result<Self, RedisError> {
         let prefix = prefix.to_string();
         let consumer = hostname::get()
             .ok()
@@ -48,21 +49,33 @@ impl TaskManager {
         prefix: impl ToString,
         group: impl ToString,
         consumer: impl ToString,
-    ) -> Result<Self, ConsumerError> {
+    ) -> Result<Self, RedisError> {
+        Self::with_task_stream(
+            client,
+            TaskStream::new(prefix.to_string(), group.to_string(), consumer.to_string()),
+        )
+        .await
+    }
+
+    pub async fn with_task_stream(
+        client: Client,
+        task_stream: TaskStream,
+    ) -> Result<Self, RedisError> {
         let pubsub = client.get_async_connection().await?.into_pubsub();
         let manager = client.get_tokio_connection_manager().await?;
         let mut manager = TaskManager {
-            consumer_group: TaskStream::new(
-                prefix.to_string(),
-                group.to_string(),
-                consumer.to_string(),
-            ),
+            client,
+            consumer_group: task_stream,
             manager,
             pubsub,
             registered_tasks: HashMap::default(),
         };
         manager.initialize().await?;
         Ok(manager)
+    }
+
+    pub async fn connect_new_manager(&self) -> Result<Self, RedisError> {
+        Self::with_task_stream(self.client.clone(), self.consumer_group.clone()).await
     }
 
     fn check_init_error(res: Result<String, RedisError>) -> Result<(), RedisError> {
@@ -81,7 +94,7 @@ impl TaskManager {
         Ok(())
     }
 
-    async fn initialize(&mut self) -> Result<(), ConsumerError> {
+    async fn initialize(&mut self) -> Result<(), RedisError> {
         // Main channel
         let res = self
             .consumer_group
@@ -133,10 +146,7 @@ impl TaskManager {
         builder
     }
 
-    pub async fn spawn_task<T: Task + 'static>(
-        &self,
-        task: T,
-    ) -> Result<TaskResult<T>, ConsumerError> {
+    pub async fn spawn_task<T: Task + 'static>(&self, task: T) -> Result<TaskResult<T>, TaskError> {
         Ok(TaskResult::spawn_task(
             self.consumer_group.clone(),
             self.manager.clone(),
@@ -148,7 +158,7 @@ impl TaskManager {
     pub async fn spawn_tasks<T: Task + 'static>(
         &self,
         tasks: Vec<T>,
-    ) -> Result<Vec<TaskResult<T>>, ConsumerError> {
+    ) -> Result<Vec<TaskResult<T>>, TaskError> {
         Ok(TaskResult::spawn_tasks(
             self.consumer_group.clone(),
             self.manager.clone(),
@@ -161,7 +171,7 @@ impl TaskManager {
     pub async fn wait_on_result<T: Task + 'static>(
         &mut self,
         task: T,
-    ) -> Result<Option<T::Output>, ConsumerError> {
+    ) -> Result<Option<T::Output>, TaskError> {
         let mut task_result = TaskResult::spawn_task(
             self.consumer_group.clone(),
             self.manager.clone(),
