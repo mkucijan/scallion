@@ -131,7 +131,7 @@ impl ConsumerTask {
                     }
                 }
             }
-            None
+            Some(stream_id)
         }
     }
 
