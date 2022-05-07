@@ -130,6 +130,10 @@ impl TaskManager {
         )
     }
 
+    pub fn connection_manager(&self) -> ConnectionManager {
+        self.manager.clone()
+    }
+
     pub fn register_task(&mut self, registry: Arc<dyn TaskRegistry>) -> &mut Self {
         if let Some(_) = self.registered_tasks.insert(registry.task_name(), registry) {
             panic!("Multiple tasks with same name registered");
