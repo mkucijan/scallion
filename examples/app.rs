@@ -121,7 +121,7 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             TaskOpts::CONSUMER_STATUS => {
                 let result = task_manager
-                    .wait_on_result(CheckConsumerStatus::new())
+                    .wait_on_result(CheckConsumerStatus::default())
                     .await?;
                 if let Some(result) = result.flatten() {
                     info!("Consumer status: {:#?}", result);
@@ -166,6 +166,7 @@ struct RandomData {
 #[async_trait]
 impl Task for ExampleStoreRandomData {
     type Output = RandomData;
+    const TASK_NAME: &'static str = "ExampleStoreRandomData";
 
     #[cfg(feature = "rkyv")]
     fn result_message_provider() -> Box<dyn scallion::MessageProvider<Message = Self::Output>> {
@@ -198,6 +199,7 @@ struct ExampleState {
 #[async_trait]
 impl Task for ExampleWithState {
     type Output = ();
+    const TASK_NAME: &'static str = "ExampleWithState";
 
     async fn task(self: Box<Self>, state: ConsumerState) -> Result<Self::Output, anyhow::Error> {
         let state: Arc<ExampleState> = state.task_state();
@@ -215,6 +217,8 @@ struct Add {
 #[async_trait]
 impl Task for Add {
     type Output = f64;
+    const TASK_NAME: &'static str = "Add";
+
     fn task_options(&self) -> TaskOptions {
         TaskOptions {
             save_result: true,

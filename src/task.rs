@@ -9,17 +9,21 @@ use crate::{
 #[async_trait]
 pub trait Task: RunnableTask + Send + Sync + 'static {
     type Output: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static;
+    const TASK_NAME: &'static str; // = std::any::type_name::<Self>();
 
-    fn task_name() -> &'static str {
-        std::any::type_name::<Self>()
+    fn task_name(&self) -> &'static str {
+        Self::TASK_NAME
     }
 
     fn task_options(&self) -> TaskOptions {
         TaskOptions::default()
     }
 
-    fn result_message_provider() -> Box<dyn MessageProvider<Message = Self::Output>> {
-        JsonMessageProvider::new()
+    fn result_message_provider() -> Box<dyn MessageProvider<Message = Self::Output>>
+    where
+        Self: Sized,
+    {
+        JsonMessageProvider::new_message_provider()
     }
 
     async fn task(self: Box<Self>, state: ConsumerState) -> Result<Self::Output, anyhow::Error>;

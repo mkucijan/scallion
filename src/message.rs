@@ -17,7 +17,7 @@ mod json_impl {
     where
         T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
-        pub fn new() -> Box<dyn MessageProvider<Message = T>> {
+        pub fn new_message_provider() -> Box<dyn MessageProvider<Message = T>> {
             Box::new(JsonMessageProvider(PhantomData))
         }
     }

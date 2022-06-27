@@ -135,7 +135,11 @@ impl TaskManager {
     }
 
     pub fn register_task(&mut self, registry: Arc<dyn TaskRegistry>) -> &mut Self {
-        if let Some(_) = self.registered_tasks.insert(registry.task_name(), registry) {
+        if self
+            .registered_tasks
+            .insert(registry.task_name(), registry)
+            .is_some()
+        {
             panic!("Multiple tasks with same name registered");
         }
         self
@@ -151,25 +155,25 @@ impl TaskManager {
     }
 
     pub async fn spawn_task<T: Task + 'static>(&self, task: T) -> Result<TaskResult<T>, TaskError> {
-        Ok(TaskResult::spawn_task(
+        TaskResult::spawn_task(
             self.consumer_group.clone(),
             self.manager.clone(),
             task,
-            self.get_task_registry(T::task_name()),
+            self.get_task_registry(T::TASK_NAME),
         )
-        .await?)
+        .await
     }
     pub async fn spawn_tasks<T: Task + 'static>(
         &self,
         tasks: Vec<T>,
     ) -> Result<Vec<TaskResult<T>>, TaskError> {
-        Ok(TaskResult::spawn_tasks(
+        TaskResult::spawn_tasks(
             self.consumer_group.clone(),
             self.manager.clone(),
             tasks,
-            self.get_task_registry(T::task_name()),
+            self.get_task_registry(T::TASK_NAME),
         )
-        .await?)
+        .await
     }
 
     pub async fn wait_on_result<T: Task + 'static>(
@@ -180,7 +184,7 @@ impl TaskManager {
             self.consumer_group.clone(),
             self.manager.clone(),
             task,
-            self.get_task_registry(T::task_name()),
+            self.get_task_registry(T::TASK_NAME),
         )
         .await?;
         if !task_result.result_saved() {
@@ -190,17 +194,13 @@ impl TaskManager {
             .subscribe(format!(
                 "__keyspace@0__:{}",
                 self.consumer_group
-                    .task_result_key(T::task_name(), task_result.id())
+                    .task_result_key(T::TASK_NAME, task_result.id())
             ))
             .await?;
-        loop {
-            if let Some(msg) = self.pubsub.on_message().next().await {
-                let response: String = msg.get_payload()?;
-                debug!("Received message update for storage key: {}", response);
-                if response.as_str() == "set" {
-                    break;
-                }
-            } else {
+        while let Some(msg) = self.pubsub.on_message().next().await {
+            let response: String = msg.get_payload()?;
+            debug!("Received message update for storage key: {}", response);
+            if response.as_str() == "set" {
                 break;
             }
         }
@@ -208,9 +208,9 @@ impl TaskManager {
             .unsubscribe(format!(
                 "__keyspace@0__:{}",
                 self.consumer_group
-                    .task_result_key(T::task_name(), task_result.id())
+                    .task_result_key(T::TASK_NAME, task_result.id())
             ))
             .await?;
-        Ok(task_result.result().await?)
+        task_result.result().await
     }
 }

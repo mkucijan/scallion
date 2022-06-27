@@ -50,10 +50,12 @@ impl TaskContainer {
         let header: TaskHeader = serde_json::from_str(
             message
                 .get::<String>("task_header")
-                .ok_or(TaskMessageError::MissingKey(format!(
-                    "Missing task_header. Stream id: {}",
-                    stream_id
-                )))?
+                .ok_or_else(|| {
+                    TaskMessageError::MissingKey(format!(
+                        "Missing task_header. Stream id: {}",
+                        stream_id
+                    ))
+                })?
                 .as_str(),
         )
         .map_err(|e| TaskMessageError::SerdeJsonError {
@@ -63,13 +65,9 @@ impl TaskContainer {
             ),
             source: e,
         })?;
-        let data: Vec<u8> =
-            message
-                .get::<Vec<u8>>("task_data")
-                .ok_or(TaskMessageError::MissingKey(format!(
-                    "Missing task_data. Stream id: {}",
-                    stream_id
-                )))?;
+        let data: Vec<u8> = message.get::<Vec<u8>>("task_data").ok_or_else(|| {
+            TaskMessageError::MissingKey(format!("Missing task_data. Stream id: {}", stream_id))
+        })?;
         Ok(Self {
             stream_id: message.id,
             header,

@@ -41,7 +41,7 @@ where
     T: Task + serde::Serialize + serde::de::DeserializeOwned + Send + 'static,
 {
     pub fn registry() -> Arc<dyn TaskRegistry> {
-        Self::with_providers(JsonMessageProvider::new())
+        Self::with_providers(JsonMessageProvider::new_message_provider())
     }
 }
 
@@ -50,7 +50,7 @@ where
     T: Task,
 {
     fn task_name(&self) -> &'static str {
-        T::task_name()
+        T::TASK_NAME
     }
 
     fn to_task_future(&self, data: &[u8]) -> Result<Box<dyn RunnableTask>, TaskMessageError> {
@@ -60,7 +60,7 @@ where
     }
 
     fn container_from_task(&self, task: &dyn Any) -> Result<TaskContainer, TaskMessageError> {
-        let task_name = T::task_name().to_string();
+        let task_name = T::TASK_NAME.to_string();
         let id = Uuid::new_v4();
         let stream_id = "^".to_string();
         let header = TaskHeader {

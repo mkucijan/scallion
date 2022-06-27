@@ -95,7 +95,7 @@ where
             while Instant::now() < until {
                 let data = self
                     .consumer_group
-                    .get_task_result(T::task_name(), self.id.as_str())
+                    .get_task_result(T::TASK_NAME, self.id.as_str())
                     .query_async::<_, Option<Vec<u8>>>(&mut self.manager)
                     .await?;
                 if let Some(data) = data {
@@ -111,7 +111,7 @@ where
         if let Some(r) = self.task_result().await? {
             Ok(T::result_message_provider()
                 .deserialize(r.data.as_slice())
-                .map(|o| Some(o))?)
+                .map(Some)?)
         } else {
             Ok(None)
         }

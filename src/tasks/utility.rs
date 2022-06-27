@@ -36,10 +36,7 @@ impl Default for Ping {
 #[async_trait]
 impl Task for Ping {
     type Output = ();
-
-    fn task_name() -> &'static str {
-        "utilites.ping"
-    }
+    const TASK_NAME: &'static str = "utilites.ping";
 
     fn task_options(&self) -> TaskOptions {
         TaskOptions {
@@ -85,7 +82,7 @@ impl Shutdown {
         Shutdown {
             shutdown_time: Utc::now()
                 + chrono::Duration::from_std(delay)
-                    .expect("Fail converting std duration to chorno"),
+                    .expect("Fail converting std duration to chrono"),
         }
     }
 }
@@ -93,10 +90,7 @@ impl Shutdown {
 #[async_trait]
 impl Task for Shutdown {
     type Output = ();
-
-    fn task_name() -> &'static str {
-        "utilites.shutdown"
-    }
+    const TASK_NAME: &'static str = "utilites.shutdown";
 
     fn task_options(&self) -> TaskOptions {
         TaskOptions {
@@ -121,14 +115,8 @@ impl Task for Shutdown {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CheckConsumerStatus {}
-
-impl CheckConsumerStatus {
-    pub fn new() -> Self {
-        CheckConsumerStatus {}
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConsumerStatus {
@@ -140,10 +128,7 @@ pub struct ConsumerStatus {
 #[async_trait]
 impl Task for CheckConsumerStatus {
     type Output = Option<ConsumerStatus>;
-
-    fn task_name() -> &'static str {
-        "utilities.check_consumer_status"
-    }
+    const TASK_NAME: &'static str = "utilites.check_consumer_status";
 
     fn task_options(&self) -> TaskOptions {
         TaskOptions {

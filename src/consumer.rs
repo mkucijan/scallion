@@ -55,6 +55,7 @@ pub enum ConsumerCommands {
 }
 
 impl StreamConsumer {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         num_parallel_tasks: usize,
         max_size: usize,
@@ -124,10 +125,10 @@ impl StreamConsumer {
         // Check pending messages
         {
             let mut pending = self.read_pending().await?;
-            prefetched.extend(deserilize_task_from_reply(&mut pending));
-            if prefetched.len() > 0 {
+            prefetched.extend(deserialize_task_from_reply(&mut pending));
+            if !prefetched.is_empty() {
                 info!("Found {} pending messages.", prefetched.len());
-                while (tasks.len() < self.num_parallel_tasks) && (prefetched.len() > 0) {
+                while (tasks.len() < self.num_parallel_tasks) && !prefetched.is_empty() {
                     let task = prefetched.pop_front().unwrap();
                     tasks.push(self.create_task(task).future());
                 }
@@ -170,14 +171,12 @@ impl StreamConsumer {
             }
 
             // Schedule future acknowledging results
-            if result_ack.is_none() && results.len() > 0 {
-                result_ack = Some(self.send_acks(Self::handle_task_result(std::mem::replace(
-                    &mut results,
-                    vec![],
-                ))));
+            if result_ack.is_none() && !results.is_empty() {
+                result_ack =
+                    Some(self.send_acks(Self::handle_task_result(std::mem::take(&mut results))));
             }
 
-            // Add timeouts so we wouldnt hot loop all the time when idle
+            // Add timeouts so we wouldn't hot loop all the time when idle
             let reply_future = async {
                 if let Some(reply_ref) = reply.as_mut() {
                     Some(reply_ref.await)
@@ -215,7 +214,7 @@ impl StreamConsumer {
                     if let Some(Some(rez)) = rez {
                         results.push(rez);
                     }
-                    if prefetched.len() > 0 {
+                    if !prefetched.is_empty() {
                         let task = prefetched.pop_front().unwrap();
                         tasks.push(self.create_task(task).future());
                     }
@@ -223,8 +222,8 @@ impl StreamConsumer {
                 r = reply_future => {
                     if let Some(r) = r {
                         let mut r = r??;
-                        prefetched.extend(deserilize_task_from_reply(&mut r));
-                        while (tasks.len() < self.num_parallel_tasks) && (prefetched.len() > 0) {
+                        prefetched.extend(deserialize_task_from_reply(&mut r));
+                        while (tasks.len() < self.num_parallel_tasks) && !prefetched.is_empty() {
                             let task = prefetched.pop_front().unwrap();
                             tasks.push(self.create_task(task).future());
                         }
@@ -234,19 +233,19 @@ impl StreamConsumer {
                 r = reply_broadcast_future => {
                     if let Some(r) = r {
                         let mut r = r??;
-                        for task in deserilize_task_from_reply(&mut r) {
+                        for task in deserialize_task_from_reply(&mut r) {
                             tasks.push(self.create_task(task).future());
                         }
                         reply_broadcast = None;
                     }
                 },
                 r = result_ack_future => {
-                    if let Some(_) = r {
+                    if r.is_some() {
                         result_ack = None;
                     }
                 }
                 command = self.command_channel.receiver.recv() => {
-                    let command = command.ok_or(ConsumerError::RuntimeError(format!("Command channel closed")))?;
+                    let command = command.ok_or_else(|| ConsumerError::RuntimeError(format!("Command channel closed")))?;
                     match command {
                         ConsumerCommands::Shutdown => {
                             info!("Received shutdown command, exiting...");
@@ -257,7 +256,7 @@ impl StreamConsumer {
             }
         }
         info!(
-            "SHUTDOWN: Waiting for remaing tasks to finish. Number of tasks: {}",
+            "SHUTDOWN: Waiting for remaining tasks to finish. Number of tasks: {}",
             tasks.len()
         );
         while let Some(Some(rez)) = tasks.next().await {
@@ -303,25 +302,21 @@ impl StreamConsumer {
     }
 }
 
-fn deserilize_task_from_reply<'l>(
-    reply: &'l mut StreamReadReply,
-) -> impl Iterator<Item = TaskContainer> + 'l {
-    reply
-        .keys
-        .drain(..)
-        .map(|mut k| {
-            k.ids
-                .drain(..)
-                .filter_map(|s| match TaskContainer::from_stream_message(s) {
-                    Ok(o) => Some(o),
-                    Err(e) => {
-                        error!(error=?e, "Failed retreving task from stream.");
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-        })
-        .flatten()
+fn deserialize_task_from_reply(
+    reply: &mut StreamReadReply,
+) -> impl Iterator<Item = TaskContainer> + '_ {
+    reply.keys.drain(..).flat_map(|mut k| {
+        k.ids
+            .drain(..)
+            .filter_map(|s| match TaskContainer::from_stream_message(s) {
+                Ok(o) => Some(o),
+                Err(e) => {
+                    error!(error=?e, "Failed retrieving task from stream.");
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    })
 }
 
 #[derive(Debug)]
@@ -391,7 +386,11 @@ impl StreamConsumerBuilder {
     }
 
     pub fn register_task(mut self, registry: Arc<dyn TaskRegistry>) -> Self {
-        if let Some(_) = self.registered_tasks.insert(registry.task_name(), registry) {
+        if self
+            .registered_tasks
+            .insert(registry.task_name(), registry)
+            .is_some()
+        {
             panic!("Multiple tasks with same name registered");
         }
         self
