@@ -59,7 +59,7 @@ impl ConsumerTask {
         let task_name = task_header.task_name.as_str();
 
         if let Some(result) =
-            Self::handle_task_result(task.run(state.clone()), task_options.spawn).await
+            Self::handle_task_result(task_name, task.run(state.clone()), task_options.spawn).await
         {
             debug!(stream_id=stream_id.as_str(), result=?result, "Task result");
             // Save result
@@ -82,7 +82,7 @@ impl ConsumerTask {
                             stream_id = stream_id.as_str(),
                             task_name,
                             response = response.as_str(),
-                            "Task succesfully saved"
+                            "Task successfully saved"
                         );
                     }
                     Err(error) => {
@@ -136,6 +136,7 @@ impl ConsumerTask {
     }
 
     async fn handle_task_result(
+        task_name: &str,
         task: BoxFuture<'static, Result<TaskOutput, TaskError>>,
         spawn: bool,
     ) -> Option<TaskOutput> {
@@ -152,11 +153,11 @@ impl ConsumerTask {
         };
         match task_result {
             Ok(r) => {
-                debug!("Task finished successfully");
+                debug!("Task `{}` finished successfully", task_name);
                 Some(r)
             }
             Err(e) => {
-                error!(error=?e, "Task failed.");
+                error!(error=?e, "Task `{}` failed.", task_name);
                 None
             }
         }
