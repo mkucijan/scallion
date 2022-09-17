@@ -52,7 +52,6 @@ pub enum TaskMessageError {
         #[source]
         source: ProstError,
     },
-    #[cfg(any(feature = "rkyv", feature = "protobuf"))]
     #[error("Compression Error: {message}\n{source}")]
     CompressionError {
         message: String,

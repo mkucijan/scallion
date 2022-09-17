@@ -8,7 +8,10 @@ pub trait MessageProvider: Send + Sync {
     fn deserialize(&self, data: &[u8]) -> Result<Self::Message, TaskMessageError>;
 }
 
-pub struct JsonMessageProvider<T: ?Sized>(PhantomData<T>);
+pub struct JsonMessageProvider<T: ?Sized> {
+    message: PhantomData<T>,
+    compression: flate2::Compression,
+}
 
 mod json_impl {
     use super::*;
@@ -18,7 +21,19 @@ mod json_impl {
         T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     {
         pub fn new_message_provider() -> Box<dyn MessageProvider<Message = T>> {
-            Box::new(JsonMessageProvider(PhantomData))
+            Box::new(Self {
+                message: PhantomData,
+                compression: flate2::Compression::none(),
+            })
+        }
+
+        pub fn with_options(
+            compression: flate2::Compression,
+        ) -> Box<dyn MessageProvider<Message = T>> {
+            Box::new(Self {
+                message: PhantomData,
+                compression,
+            })
         }
     }
 
@@ -29,16 +44,33 @@ mod json_impl {
         type Message = T;
 
         fn serialize(&self, task: &Self::Message) -> Result<Vec<u8>, TaskMessageError> {
-            serde_json::to_vec(task).map_err(|e| TaskMessageError::SerdeJsonError {
-                message: format!("Failed serializing message"),
-                source: e,
-            })
+            let encoded = serde_json::to_vec(task).map_err(|e| -> TaskMessageError {
+                TaskMessageError::SerdeJsonError {
+                    message: "Failed serializing message".to_string(),
+                    source: e,
+                }
+            })?;
+            let bytes = if self.compression == flate2::Compression::none() {
+                encoded
+            } else {
+                deflate::compress_bytes(encoded.as_slice(), self.compression)?
+            };
+            Ok(bytes)
         }
 
         fn deserialize(&self, data: &[u8]) -> Result<Self::Message, TaskMessageError> {
-            serde_json::from_slice(data).map_err(|e| TaskMessageError::SerdeJsonError {
-                message: format!("Failed deserializing message"),
-                source: e,
+            let data_holder;
+            let data = if self.compression == flate2::Compression::none() {
+                data
+            } else {
+                data_holder = deflate::decompress_bytes(data)?;
+                data_holder.as_slice()
+            };
+            serde_json::from_slice(data).map_err(|e| -> TaskMessageError {
+                TaskMessageError::SerdeJsonError {
+                    message: "Failed deserializing message".to_string(),
+                    source: e,
+                }
             })
         }
     }
@@ -67,7 +99,7 @@ mod rkyv_impl {
         for<'l> <T as Archive>::Archived:
             CheckBytes<DefaultValidator<'l>> + Deserialize<T, SharedDeserializeMap>,
     {
-        pub fn new() -> Box<dyn MessageProvider<Message = T>> {
+        pub fn new_message_provider() -> Box<dyn MessageProvider<Message = T>> {
             Box::new(RkyvMessageProvider {
                 message: PhantomData,
                 compression: flate2::Compression::none(),
@@ -95,7 +127,7 @@ mod rkyv_impl {
         fn serialize(&self, task: &Self::Message) -> Result<Vec<u8>, TaskMessageError> {
             let encoded = rkyv::to_bytes(task).map(|v| v.into_vec()).map_err(|e| {
                 TaskMessageError::RkyvError {
-                    message: format!("Failed serializing message"),
+                    message: "Failed serializing message".to_string(),
                     source: crate::error::RkyvError::SerializerError(e),
                 }
             })?;
@@ -116,7 +148,7 @@ mod rkyv_impl {
                 data_holder.as_slice()
             };
             rkyv::from_bytes(data).map_err(|e| TaskMessageError::RkyvError {
-                message: format!("Failed deserialize validation on message"),
+                message: "Failed deserialize validation on message".to_string(),
                 source: crate::error::RkyvError::DeserializerError(format!("{:?}", e)),
             })
         }
@@ -140,7 +172,7 @@ mod protobuf_impl {
     where
         T: Message + Default + 'static,
     {
-        pub fn new() -> Box<dyn MessageProvider<Message = T>> {
+        pub fn new_message_provider() -> Box<dyn MessageProvider<Message = T>> {
             Box::new(ProtobufMessageProvider {
                 message: PhantomData,
                 compression: flate2::Compression::none(),
@@ -182,14 +214,13 @@ mod protobuf_impl {
                 data_holder.as_slice()
             };
             T::decode(data).map_err(|e| TaskMessageError::ProstError {
-                message: format!("Failed deserialize validation on message"),
+                message: "Failed deserialize validation on message".to_string(),
                 source: crate::error::ProstError::DeserializerError(e),
             })
         }
     }
 }
 
-#[cfg(any(feature = "rkyv", feature = "protobuf"))]
 mod deflate {
     use std::io::Write;
 
@@ -207,11 +238,11 @@ mod deflate {
         let mut e = ZlibEncoder::new(Vec::with_capacity(bytes.len()), compression_level);
         e.write_all(bytes)
             .map_err(|e| TaskMessageError::CompressionError {
-                message: format!("Error while compressing"),
+                message: "Error while compressing".to_string(),
                 source: e,
             })?;
         e.finish().map_err(|e| TaskMessageError::CompressionError {
-            message: format!("Error while compressing"),
+            message: "Error while compressing".to_string(),
             source: e,
         })
     }
@@ -220,11 +251,11 @@ mod deflate {
         let mut d = ZlibDecoder::new(Vec::with_capacity(bytes.len() * 2));
         d.write_all(bytes)
             .map_err(|e| TaskMessageError::CompressionError {
-                message: format!("Error while decompressing"),
+                message: "Error while decompressing".to_string(),
                 source: e,
             })?;
         d.finish().map_err(|e| TaskMessageError::CompressionError {
-            message: format!("Error while decompressing"),
+            message: "Error while decompressing".to_string(),
             source: e,
         })
     }
