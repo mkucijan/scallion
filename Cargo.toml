@@ -26,18 +26,18 @@ tracing = "0.1"
 thiserror = "1.0"
 tokio = { version = "1.8", features=["full"] }
 redis = { version = "0.21", features = ["aio", "connection-manager", "tokio-comp"] }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "1", features = ["serde", "v4"] }
 typetag = "0.2"
 flate2 = { version = "1.0" }
 
 # Other
 hostname = "^0.3"
-systemstat = "0.1"
+systemstat = "0.2"
 
 # Extra
 rkyv = { version = "0.7", features = ["alloc", "validation", "strict"], optional=true }
 bytecheck = { version = "0.6", optional = true }
-prost = { version = "0.10", optional = true }
+prost = { version = "0.11", optional = true }
 
 [dev-dependencies]
 clap = { version = "3.0", features = ["derive"] }
