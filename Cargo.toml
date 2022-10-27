@@ -18,14 +18,14 @@ name = "app"
 anyhow = "1.0"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-chrono-tz = { version = "0.6", features = ["serde"] }
+chrono-tz = { version = "0.7", features = ["serde"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
 thiserror = "1.0"
 tokio = { version = "1.8", features=["full"] }
-redis = { version = "0.21", features = ["aio", "connection-manager", "tokio-comp"] }
+redis = { version = "0.22", features = ["aio", "connection-manager", "tokio-comp"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 typetag = "0.2"
 flate2 = { version = "1.0" }
