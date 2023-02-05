@@ -14,7 +14,7 @@ struct Add {
 #[async_trait]
 impl Task for Add {
     type Output = f64;
-    async fn task(self: Box<Self>, _: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(self: Box<Self>, _: ConsumerState) -> Result<Self::Output, Box<dyn Error + Send + Sync + 'static>> {
         Ok(self.x + self.y)
     }
 }

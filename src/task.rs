@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 
@@ -26,7 +28,10 @@ pub trait Task: RunnableTask + Send + Sync + 'static {
         JsonMessageProvider::new_message_provider()
     }
 
-    async fn task(self: Box<Self>, state: ConsumerState) -> Result<Self::Output, anyhow::Error>;
+    async fn task(
+        self: Box<Self>,
+        state: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn Error + Send + Sync + 'static>>;
 }
 
 pub trait RunnableTask: Send + Sync {

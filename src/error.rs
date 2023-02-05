@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use thiserror::Error;
 
 use crate::ConsumerCommands;
@@ -19,7 +21,7 @@ pub enum ConsumerError {
 #[derive(Debug, Error)]
 pub enum TaskError {
     #[error("Task Error: '{0}'")]
-    TaskFailed(#[from] anyhow::Error),
+    TaskFailed(#[from] Box<dyn Error + Send + Sync + 'static>),
     #[error("Task Message error: '{0}'")]
     TaskMessageError(#[from] TaskMessageError),
     #[error("Redis error: '{0}'")]
