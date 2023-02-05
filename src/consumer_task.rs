@@ -50,7 +50,7 @@ impl ConsumerTask {
         let task = match state.registry().to_task_future(container.data()) {
             Ok(r) => r,
             Err(e) => {
-                error!(error=?e, "Failed creating task.");
+                error!("Failed creating task. {e}");
                 return None;
             }
         };
@@ -90,8 +90,7 @@ impl ConsumerTask {
                             id = id.as_str(),
                             stream_id = stream_id.as_str(),
                             task_name,
-                            error=?error,
-                            "Failed saving task result."
+                            "Failed saving task result. {error:?}"
                         );
                         return None;
                     }
@@ -126,8 +125,8 @@ impl ConsumerTask {
                             id = id.as_str(),
                             stream_id = stream_id.as_str(),
                             task_name,
-                            error=?error,
-                                "Failed sending retry task");
+                            "Failed sending retry task. {error}"
+                        );
                     }
                 }
             }
@@ -144,7 +143,7 @@ impl ConsumerTask {
             match tokio::spawn(task).await {
                 Ok(result) => result,
                 Err(e) => {
-                    error!(err=?e, "Join handle fail.");
+                    error!("Join handle fail: {e}");
                     return None;
                 }
             }
@@ -153,11 +152,11 @@ impl ConsumerTask {
         };
         match task_result {
             Ok(r) => {
-                debug!("Task `{}` finished successfully", task_name);
+                debug!("Task `{task_name}` finished successfully");
                 Some(r)
             }
             Err(e) => {
-                error!(error=?e, "Task `{}` failed.", task_name);
+                error!("Task `{task_name}` failed. {e}");
                 None
             }
         }

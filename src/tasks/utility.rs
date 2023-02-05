@@ -178,7 +178,7 @@ impl Task for CheckConsumerStatus {
                     cpu.idle * 100.0
                 );
             }
-            Err(x) => error!("\nCPU load: error: {}", x),
+            Err(x) => error!("\nCPU load: error: {x}"),
         }
         Ok(
             if let (Some(cpu_perc), Some(memory_perc)) = (cpu_perc, memory_perc) {
