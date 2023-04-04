@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::Context;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -45,7 +44,10 @@ impl Task for Ping {
         }
     }
 
-    async fn task(self: Box<Self>, _: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(
+        self: Box<Self>,
+        _: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn std::error::Error + Send + Sync + 'static>> {
         info!(
             id = self.uuid.to_string().as_str(),
             created_at = self.created_at.to_string().as_str(),
@@ -55,7 +57,7 @@ impl Task for Ping {
             tokio::time::sleep(Duration::from_millis(delay)).await;
         }
         if self.fake_failure {
-            return Err(anyhow::anyhow!("Fake task failure"));
+            return Err("Fake task failure".into());
         }
         info!(
             id = self.uuid.to_string().as_str(),
@@ -99,12 +101,15 @@ impl Task for Shutdown {
         }
     }
 
-    async fn task(self: Box<Self>, state: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(
+        self: Box<Self>,
+        state: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn std::error::Error + Send + Sync + 'static>> {
         if self.shutdown_time > Utc::now() {
             tokio::time::sleep(
                 (Utc::now() - self.shutdown_time)
                     .to_std()
-                    .context("Failed converting chrono duration to std.")?,
+                    .map_err(|e| format!("Failed converting chrono duration to std:\n{e:?}"))?,
             )
             .await
         }
@@ -137,7 +142,10 @@ impl Task for CheckConsumerStatus {
         }
     }
 
-    async fn task(self: Box<Self>, _: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(
+        self: Box<Self>,
+        _: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let mut cpu_perc = None;
         let mut memory_perc = None;
 
@@ -170,7 +178,7 @@ impl Task for CheckConsumerStatus {
                     cpu.idle * 100.0
                 );
             }
-            Err(x) => error!("\nCPU load: error: {}", x),
+            Err(x) => error!("\nCPU load: error: {x}"),
         }
         Ok(
             if let (Some(cpu_perc), Some(memory_perc)) = (cpu_perc, memory_perc) {

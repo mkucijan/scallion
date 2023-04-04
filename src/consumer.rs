@@ -288,7 +288,7 @@ impl StreamConsumer {
                         "Messages acknowledged"
                     )
                 }
-                Err(e) => error!(err=?e, "Error acknowledging"),
+                Err(e) => error!("Error acknowledging task. {e}"),
             }
         })
     }
@@ -311,7 +311,7 @@ fn deserialize_task_from_reply(
             .filter_map(|s| match TaskContainer::from_stream_message(s) {
                 Ok(o) => Some(o),
                 Err(e) => {
-                    error!(error=?e, "Failed retrieving task from stream.");
+                    error!("Failed retrieving task from stream. {e}");
                     None
                 }
             })

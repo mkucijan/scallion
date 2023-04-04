@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use async_trait::async_trait;
 use clap::Parser;
@@ -61,7 +61,7 @@ pub enum TaskOpts {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     tracing_subscriber::fmt::init();
     let opts = Config::parse();
     let client = redis::Client::open(opts.redis_url)?;
@@ -180,7 +180,10 @@ impl Task for ExampleStoreRandomData {
         }
     }
 
-    async fn task(self: Box<Self>, _: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(
+        self: Box<Self>,
+        _: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn Error + Send + Sync + 'static>> {
         let size = rand::random::<u16>();
         let random_bytes: Vec<u8> = (0..size).map(|_| rand::random::<u8>()).collect();
         Ok(RandomData { data: random_bytes })
@@ -201,7 +204,10 @@ impl Task for ExampleWithState {
     type Output = ();
     const TASK_NAME: &'static str = "ExampleWithState";
 
-    async fn task(self: Box<Self>, state: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(
+        self: Box<Self>,
+        state: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn Error + Send + Sync + 'static>> {
         let state: Arc<ExampleState> = state.task_state();
         info!(example_state=?state);
         Ok(())
@@ -225,7 +231,10 @@ impl Task for Add {
             ..Default::default()
         }
     }
-    async fn task(self: Box<Self>, _: ConsumerState) -> Result<Self::Output, anyhow::Error> {
+    async fn task(
+        self: Box<Self>,
+        _: ConsumerState,
+    ) -> Result<Self::Output, Box<dyn Error + Send + Sync + 'static>> {
         Ok(self.x + self.y)
     }
 }
