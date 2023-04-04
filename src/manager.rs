@@ -19,6 +19,7 @@ pub struct TaskManager {
     manager: ConnectionManager,
     pubsub: PubSub,
     registered_tasks: HashMap<&'static str, Arc<dyn TaskRegistry>>,
+    notify_keyspace_events: bool,
 }
 
 impl std::fmt::Debug for TaskManager {
@@ -69,6 +70,7 @@ impl TaskManager {
             manager,
             pubsub,
             registered_tasks: HashMap::default(),
+            notify_keyspace_events: false,
         };
         manager.initialize().await?;
         Ok(manager)
@@ -94,6 +96,10 @@ impl TaskManager {
         Ok(())
     }
 
+    pub fn notify_keyspace_events(&mut self, enable: bool) {
+        self.notify_keyspace_events = enable;
+    }
+
     async fn initialize(&mut self) -> Result<(), RedisError> {
         // Main channel
         let res = self
@@ -111,14 +117,17 @@ impl TaskManager {
             .await;
         // Ignore group and stream already exists
         Self::check_init_error(res)?;
-        // For pubsub key notifications
-        Cmd::new()
-            .arg("config")
-            .arg("set")
-            .arg("notify-keyspace-events")
-            .arg("g$K")
-            .query_async(&mut self.manager)
-            .await?;
+
+        if self.notify_keyspace_events {
+            // For pubsub key notifications
+            Cmd::new()
+                .arg("config")
+                .arg("set")
+                .arg("notify-keyspace-events")
+                .arg("g$K")
+                .query_async(&mut self.manager)
+                .await?;
+        }
         Ok(())
     }
 
@@ -190,27 +199,29 @@ impl TaskManager {
         if !task_result.result_saved() {
             return Ok(None);
         }
-        self.pubsub
-            .subscribe(format!(
-                "__keyspace@0__:{}",
-                self.consumer_group
-                    .task_result_key(T::TASK_NAME, task_result.id())
-            ))
-            .await?;
-        while let Some(msg) = self.pubsub.on_message().next().await {
-            let response: String = msg.get_payload()?;
-            debug!("Received message update for storage key: {}", response);
-            if response.as_str() == "set" {
-                break;
+        if self.notify_keyspace_events {
+            self.pubsub
+                .subscribe(format!(
+                    "__keyspace@0__:{}",
+                    self.consumer_group
+                        .task_result_key(T::TASK_NAME, task_result.id())
+                ))
+                .await?;
+            while let Some(msg) = self.pubsub.on_message().next().await {
+                let response: String = msg.get_payload()?;
+                debug!("Received message update for storage key: {}", response);
+                if response.as_str() == "set" {
+                    break;
+                }
             }
+            self.pubsub
+                .unsubscribe(format!(
+                    "__keyspace@0__:{}",
+                    self.consumer_group
+                        .task_result_key(T::TASK_NAME, task_result.id())
+                ))
+                .await?;
         }
-        self.pubsub
-            .unsubscribe(format!(
-                "__keyspace@0__:{}",
-                self.consumer_group
-                    .task_result_key(T::TASK_NAME, task_result.id())
-            ))
-            .await?;
         task_result.result().await
     }
 }
