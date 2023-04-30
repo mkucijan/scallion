@@ -1,3 +1,5 @@
+use std::env;
+
 use redis::streams::{StreamMaxlen, StreamReadOptions};
 use redis::Cmd;
 
@@ -19,7 +21,10 @@ impl TaskStream {
             stream: format!("{prefix}_scallion_task_stream"),
             broadcast_channel: format!("{prefix}_scallion_task_stream_broadcast"),
             consumer,
-            max_stream_size: 100_000,
+            max_stream_size: env::var("SCALLION_REDIS_DEFAULT_MAX_STREAMS_SIZE")
+                .unwrap_or("1000000".to_string())
+                .parse()
+                .expect("`SCALLION_REDIS_DEFAULT_MAX_STREAMS_SIZE` must be a number"),
             prefix,
             group,
         }
